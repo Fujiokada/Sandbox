@@ -1,0 +1,161 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local espEnabled = false
+local espTransparency = 0.6
+local espColor = Color3.fromRGB(255, 175, 210)
+local CHMSFolder = CoreGui:FindFirstChild("CHMS_Holder") or Instance.new("Folder", CoreGui)
+CHMSFolder.Name = "CHMS_Holder"
+
+-- UI Setup
+local screenGui = Instance.new("ScreenGui", CoreGui)
+screenGui.Name = "ESP_UI"
+
+local toggleFrame = Instance.new("Frame", screenGui)
+toggleFrame.Size = UDim2.new(0, 200, 0, 40)
+toggleFrame.Position = UDim2.new(1, -210, 1, -260)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleFrame.BorderSizePixel = 0
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 8)
+
+local toggleBtn = Instance.new("TextButton", toggleFrame)
+toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+toggleBtn.Text = "esp [OFF]"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 18
+toggleBtn.AutoButtonColor = true
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
+
+-- Clear ESP
+local function clearAllESP()
+	for _, v in pairs(CHMSFolder:GetChildren()) do
+		v:Destroy()
+	end
+end
+
+local function createESP(plr)
+	if plr == LocalPlayer then return end
+	local char = plr.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if CHMSFolder:FindFirstChild(plr.Name.."_CHMS") then return end
+
+	local adornFolder = Instance.new("Folder")
+	adornFolder.Name = plr.Name.."_CHMS"
+	adornFolder.Parent = CHMSFolder
+
+	-- Main diamond box
+	local adorn = Instance.new("BoxHandleAdornment")
+	adorn.Adornee = root
+	adorn.AlwaysOnTop = true
+	adorn.ZIndex = 10
+	adorn.Size = Vector3.new(0.6, 0.6, 0.6)
+	adorn.Transparency = 0.1
+	adorn.Color3 = Color3.new(1, 1, 1)
+	adorn.Parent = adornFolder
+
+	-- Rotate to diamond
+	local attachment = Instance.new("Attachment", root)
+	adorn.CFrame = CFrame.Angles(0, 0, math.rad(45))
+
+	-- Neon glow with a SelectionBox
+	local selection = Instance.new("SelectionBox")
+	selection.Adornee = root
+	selection.LineThickness = 0.05
+	selection.Color3 = Color3.new(1, 1, 1)
+	selection.SurfaceTransparency = 0.8
+	selection.Parent = adornFolder
+
+	-- Billboard name tag
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "NameTag"
+	billboard.Adornee = root
+	billboard.Size = UDim2.new(0, 80, 0, 16) -- smaller and cleaner
+	billboard.StudsOffset = Vector3.new(0, 2.2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = adornFolder
+
+local nameLabel = Instance.new("TextLabel")
+nameLabel.Size = UDim2.new(1, 0, 1, 0)
+nameLabel.BackgroundTransparency = 1
+nameLabel.Text = plr.DisplayName
+nameLabel.TextColor3 = Color3.fromRGB(59, 148, 104) -- deep green
+nameLabel.TextStrokeTransparency = 0.5
+nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+nameLabel.Font = Enum.Font.GothamBold
+nameLabel.TextScaled = true
+nameLabel.Parent = billboard
+end
+
+-- Utility: Toggle default name tags visibility
+local function setDefaultNameTagsVisible(visible)
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+			local hum = plr.Character:FindFirstChild("Humanoid")
+			hum.DisplayDistanceType = visible and Enum.HumanoidDisplayDistanceType.Viewer or Enum.HumanoidDisplayDistanceType.None
+		end
+	end
+end
+
+
+-- ESP Update Loop
+task.spawn(function()
+	while true do
+		if espEnabled then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				createESP(plr)
+			end
+		end
+		task.wait(0.5)
+	end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	toggleBtn.Text = espEnabled and "Toggle ESP [ON]" or "Toggle ESP [OFF]"
+	setDefaultNameTagsVisible(not espEnabled) -- hide or show name tags
+	if not espEnabled then
+		clearAllESP()
+	end
+end)
+
+-- Cleanup
+Players.PlayerRemoving:Connect(function(plr)
+	local folder = CHMSFolder:FindFirstChild(plr.Name.."_CHMS")
+	if folder then folder:Destroy() end
+end)
+
+local function handlePlayer(plr)
+	local function onCharAdded(char)
+		if espEnabled then
+			task.wait(1) -- small delay to ensure HumanoidRootPart exists
+			-- Clear any old ESP
+			local old = CHMSFolder:FindFirstChild(plr.Name.."_CHMS")
+			if old then old:Destroy() end
+			createESP(plr)
+		end
+	end
+
+	plr.CharacterAdded:Connect(onCharAdded)
+
+	-- In case their character already exists
+	if plr.Character then
+		onCharAdded(plr.Character)
+	end
+end
+
+-- Connect existing and new players
+for _, plr in ipairs(Players:GetPlayers()) do
+	if plr ~= LocalPlayer then
+		handlePlayer(plr)
+	end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	handlePlayer(plr)
+end)
