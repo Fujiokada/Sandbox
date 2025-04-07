@@ -1,0 +1,352 @@
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local PushRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PushPlayer")
+local defaultPushPower = 50
+local pushPower = defaultPushPower
+local pushRadius = 20
+local pushAngleThreshold = math.cos(math.rad(45))
+
+local whitelist = {}
+local playerLabels = {}
+
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HRP = Character:WaitForChild("HumanoidRootPart")
+
+local function blockForces(hrp)
+    hrp.ChildAdded:Connect(function(child)
+        if child:IsA("BodyVelocity") or child:IsA("VectorForce") or child:IsA("BodyForce") then
+            print("Blocked force:", child.ClassName)
+            child:Destroy()
+        end
+    end)
+end
+
+blockForces(HRP)
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    HRP = Character:WaitForChild("HumanoidRootPart")
+    blockForces(HRP)
+
+    local gui = PlayerGui:FindFirstChild("PushPowerGUI")
+    if gui then
+        local textBox = gui:FindFirstChild("TextBox")
+        if textBox then
+            textBox.Text = tostring(pushPower)
+        end
+    end
+end)
+
+local function pushNearbyPlayers()
+    if not HRP then return end
+    local lookVector = HRP.CFrame.LookVector
+    local pushedSomeone = false
+
+    for _, player in ipairs(Players:GetPlayers()) do
+         if not whitelist[player.Name] and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = player.Character.HumanoidRootPart
+            local offset = targetHRP.Position - HRP.Position
+            local distance = offset.Magnitude
+
+            if distance <= pushRadius then
+                local directionToTarget = offset.Unit
+                local dot = lookVector:Dot(directionToTarget)
+
+                if dot >= pushAngleThreshold then
+                    local direction = Vector3.new(0, -1, 0) * pushPower
+                    local success = PushRemote:InvokeServer(player, direction)
+
+                    if success then
+                        StarterGui:SetCore("SendNotification", {
+                            Title = "Push",
+                            Text = "Upsy Daisy " .. player.Name .. " ⬆️",
+                            Duration = 2
+                        })
+                        pushedSomeone = true
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if not pushedSomeone then
+        StarterGui:SetCore("SendNotification", {
+            Title = "Failed",
+            Text = "cd or inactive game",
+            Duration = 2
+        })
+    end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
+        pushNearbyPlayers()
+    end
+end)
+
+-- gui things
+local screenGui = PlayerGui:FindFirstChild("PushPowerGUI") or Instance.new("ScreenGui")
+screenGui.Name = "PushPowerGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+local frame = Instance.new("Frame", screenGui)
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0, 10, 1, -110)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Text = "Push Power Config"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.SourceSans
+title.TextSize = 18
+local textBox = Instance.new("TextBox", frame)
+textBox.Name = "TextBox"
+textBox.Position = UDim2.new(0, 10, 0, 30)
+textBox.Size = UDim2.new(0, 120, 0, 30)
+textBox.PlaceholderText = "Enter Power"
+textBox.Text = tostring(pushPower)
+textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+textBox.TextColor3 = Color3.new(1, 1, 1)
+textBox.ClearTextOnFocus = false
+textBox.Font = Enum.Font.SourceSans
+textBox.TextSize = 16
+local applyButton = Instance.new("TextButton", frame)
+applyButton.Position = UDim2.new(0, 135, 0, 30)
+applyButton.Size = UDim2.new(0, 55, 0, 30)
+applyButton.Text = "Apply"
+applyButton.BackgroundColor3 = Color3.fromRGB(60, 100, 60)
+applyButton.TextColor3 = Color3.new(1, 1, 1)
+applyButton.Font = Enum.Font.SourceSans
+applyButton.TextSize = 16
+local resetButton = Instance.new("TextButton", frame)
+resetButton.Position = UDim2.new(0, 10, 0, 65)
+resetButton.Size = UDim2.new(1, -20, 0, 25)
+resetButton.Text = "Reset to Default (50)"
+resetButton.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
+resetButton.TextColor3 = Color3.new(1, 1, 1)
+resetButton.Font = Enum.Font.SourceSans
+resetButton.TextSize = 14
+
+-- Create Whitelist/Blacklist Panel
+local listFrame = Instance.new("Frame", screenGui)
+listFrame.Size = UDim2.new(0, 200, 0, 200)
+listFrame.Position = UDim2.new(1, -210, 1, -210)
+listFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+listFrame.BorderSizePixel = 0
+
+local listTitle = Instance.new("TextLabel", listFrame)
+listTitle.Size = UDim2.new(1, 0, 0, 25)
+listTitle.Text = "Whitelist/Blacklist"
+listTitle.TextColor3 = Color3.new(1, 1, 1)
+listTitle.BackgroundTransparency = 1
+listTitle.Font = Enum.Font.SourceSans
+listTitle.TextSize = 18
+
+local searchBox = Instance.new("TextBox", listFrame)
+searchBox.PlaceholderText = "Search Player"
+searchBox.Size = UDim2.new(1, -10, 0, 25)
+searchBox.Position = UDim2.new(0, 5, 0, 30)
+searchBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+searchBox.TextColor3 = Color3.new(1, 1, 1)
+searchBox.Font = Enum.Font.SourceSans
+searchBox.TextSize = 16
+
+applyButton.MouseButton1Click:Connect(function()
+    local input = tonumber(textBox.Text)
+    if input then
+        pushPower = input
+        StarterGui:SetCore("SendNotification", {
+            Title = "Set",
+            Text = "Power set to " .. pushPower,
+            Duration = 2
+        })
+    else
+        StarterGui:SetCore("SendNotification", {
+            Title = "Invalid",
+            Text = "Enter a valid number plz",
+            Duration = 2
+        })
+    end
+end)
+
+resetButton.MouseButton1Click:Connect(function()
+    pushPower = defaultPushPower
+    textBox.Text = tostring(pushPower)
+    StarterGui:SetCore("SendNotification", {
+        Title = "Reset",
+        Text = "resetted to default",
+        Duration = 2
+    })
+end)
+
+-- Create Scrolling List
+local scrollingFrame = Instance.new("ScrollingFrame", listFrame)
+scrollingFrame.Position = UDim2.new(0, 5, 0, 60)
+scrollingFrame.Size = UDim2.new(1, -10, 1, -65)
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.ScrollBarThickness = 6
+scrollingFrame.BackgroundTransparency = 1
+
+local function refreshPlayerList()
+    for _, child in ipairs(scrollingFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    playerLabels = {}
+
+    local yPos = 0
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if searchBox.Text ~= "" and not string.find(string.lower(player.DisplayName), string.lower(searchBox.Text)) then
+            continue
+        end
+
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -5, 0, 25)
+        button.Position = UDim2.new(0, 0, 0, yPos)
+        button.BackgroundColor3 = whitelist[player.Name] and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(120, 0, 0)
+        button.TextColor3 = Color3.new(1, 1, 1)
+        button.Font = Enum.Font.SourceSans
+        button.TextSize = 14
+        button.Text = player.DisplayName .. " (" .. player.Name .. ")"
+        button.Parent = scrollingFrame
+
+        button.MouseButton1Click:Connect(function()
+            whitelist[player.Name] = not whitelist[player.Name]
+            refreshPlayerList()
+        end)
+
+        yPos += 27
+    end
+
+    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+Players.PlayerAdded:Connect(function() task.delay(1, refreshPlayerList) end)
+Players.PlayerRemoving:Connect(function() task.delay(1, refreshPlayerList) end)
+searchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayerList)
+
+task.spawn(function()
+    while true do
+        refreshPlayerList()
+        task.wait(1)
+    end
+end)
+
+-- 🛠️ Create Persistent Fling Tool with Highlight
+local function createFlingTool()
+    local tool = Instance.new("Tool")
+    tool.Name = "Thingy"
+    tool.RequiresHandle = false
+    tool.CanBeDropped = false
+    tool.Parent = LocalPlayer.Backpack
+
+    local mouse = LocalPlayer:GetMouse()
+    local currentHighlight = nil
+    local lastCharacter = nil
+
+    -- Highlight logic
+    local function updateHighlight()
+        local target = mouse.Target
+        if target and target:FindFirstAncestorOfClass("Model") then
+            local char = target:FindFirstAncestorOfClass("Model")
+            if char ~= lastCharacter and char:FindFirstChild("HumanoidRootPart") then
+                if currentHighlight then currentHighlight:Destroy() end
+
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.fromRGB(255, 150, 0)
+                highlight.OutlineColor = Color3.new(1, 1, 1)
+                highlight.OutlineTransparency = 0
+                highlight.FillTransparency = 0.4
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.Parent = char
+                highlight.Adornee = char
+
+                currentHighlight = highlight
+                lastCharacter = char
+            end
+        else
+            if currentHighlight then
+                currentHighlight:Destroy()
+                currentHighlight = nil
+                lastCharacter = nil
+            end
+        end
+    end
+
+    -- Mouse hover update
+    local runService = game:GetService("RunService")
+    local highlightConnection
+
+    tool.Equipped:Connect(function()
+        highlightConnection = runService.RenderStepped:Connect(updateHighlight)
+    end)
+
+    tool.Unequipped:Connect(function()
+        if highlightConnection then highlightConnection:Disconnect() end
+        if currentHighlight then currentHighlight:Destroy() end
+        currentHighlight = nil
+        lastCharacter = nil
+    end)
+
+    -- Tool activated = FLING target
+    tool.Activated:Connect(function()
+        local target = mouse.Target
+        if target and target:FindFirstAncestorOfClass("Model") then
+            local char = target:FindFirstAncestorOfClass("Model")
+            local plr = Players:GetPlayerFromCharacter(char)
+if plr and plr ~= LocalPlayer then
+    if whitelist[plr.Name] then
+        StarterGui:SetCore("SendNotification", {
+            Title = "Whitelisted",
+            Text = "You can't fling " .. plr.Name,
+            Duration = 2
+        })
+        return
+    end
+    local success = PushRemote:InvokeServer(plr, Vector3.new(0, 200, 0))
+                if success then
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Faggot",
+                        Text = "Upsy Daisy " .. plr.Name .. " 🚀",
+                        Duration = 2
+                    })
+                else
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "Failed",
+                        Text = "CD or inactive",
+                        Duration = 2
+                    })
+                end
+            end
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "No Target",
+                Text = "Hover over a player",
+                Duration = 2
+            })
+        end
+    end)
+end
+
+-- 🧍 Reapply on respawn
+createFlingTool()
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    createFlingTool()
+end)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "Faggot",
+    Text = "Loaded",
+    Duration = 3
+})
