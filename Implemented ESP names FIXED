@@ -18,17 +18,17 @@ toggleFrame.Size = UDim2.new(0, 200, 0, 40)
 toggleFrame.Position = UDim2.new(1, -210, 1, -260)
 toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 toggleFrame.BorderSizePixel = 0
-Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 0)
 
 local toggleBtn = Instance.new("TextButton", toggleFrame)
 toggleBtn.Size = UDim2.new(1, 0, 1, 0)
-toggleBtn.Text = "esp [OFF]"
+toggleBtn.Text = "esp [off]"
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 18
 toggleBtn.AutoButtonColor = true
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 0)
 
 -- Clear ESP
 local function clearAllESP()
@@ -117,7 +117,7 @@ end)
 
 toggleBtn.MouseButton1Click:Connect(function()
 	espEnabled = not espEnabled
-	toggleBtn.Text = espEnabled and "Toggle ESP [ON]" or "Toggle ESP [OFF]"
+	toggleBtn.Text = espEnabled and "esp [on]" or "esp [off]"
 	setDefaultNameTagsVisible(not espEnabled) -- hide or show name tags
 	if not espEnabled then
 		clearAllESP()
