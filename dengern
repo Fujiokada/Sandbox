@@ -1,0 +1,307 @@
+-- FULL AUTO FARM SCRIPT - Dual Kill Aura (Player + Pet)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ✅ Only run if inside correct game instance
+local allowedPlaceId = 109839406390472
+if game.PlaceId ~= allowedPlaceId then
+	warn("[AutoFarm] Aborted: Script is running in an unsupported game or lobby.")
+	return
+else
+	warn("[AutoFarm] Game matched. AutoFarm script enabled.")
+end
+
+local RunService = game:GetService("RunService")
+local player = game.Players.LocalPlayer
+
+RunService.Stepped:Connect(function()
+    local char = player.Character
+    if char and not Clip then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide and part.Name ~= floatName then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Services & Folders
+local CombatRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
+local PetDamageRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PetDamage")
+local DungeonSystem = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Dungeons")
+local TriggerStartDungeon = DungeonSystem:WaitForChild("TriggerStartDungeon")
+local SetExitChoice = DungeonSystem:WaitForChild("SetExitChoice")
+
+local MobsFolder = Workspace:WaitForChild("Mobs")
+local EffectsFolder = Workspace:WaitForChild("Effects")
+
+-- Config
+local ATTACK_RANGE = 200
+local ATTACK_DELAY = 0.25
+local PET_ATTACK_DELAY = 0
+local TELEPORT_HEIGHT = 30
+local PLATFORM_SIZE = Vector3.new(10, 1, 10)
+local TWEEN_SPEED = 2 -- seconds; increase for slower movement
+local PLATFORM_SPAWN_INTERVAL = 0.25 -- seconds between platform rechecks
+
+-- Pet config
+local PET_NAME = "Somnekk"
+local PET_ATTACK_NAME = "Laser"
+local PET_HITBOX_NAME = "Box" -- this is the hitbox part used for the Laser attack
+
+-- State
+local platform = nil
+local lastMob = nil
+
+-- Utils
+local function getPlayerRoot()
+	local char = LocalPlayer.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then
+		return nil
+	end
+	return char.HumanoidRootPart
+end
+
+local function getMobPosition(mob)
+	return mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+end
+
+local function getNearestMob()
+	local root = getPlayerRoot()
+	if not root then return nil end
+	local nearest, shortest = nil, math.huge
+	for _, mob in ipairs(MobsFolder:GetChildren()) do
+		if mob:IsA("Model") and mob:FindFirstChild("Healthbar") and not mob:FindFirstChild("PetItemRef") then
+			local mobPart = getMobPosition(mob)
+			if mobPart then
+				local dist = (mobPart.Position - root.Position).Magnitude
+				if dist < shortest then
+					shortest = dist
+					nearest = mob
+				end
+			end
+		end
+	end
+	return nearest
+end
+
+local function spawnPlatform(position)
+	local part = Instance.new("Part")
+	part.Size = PLATFORM_SIZE
+	part.Anchored = true
+	part.CanCollide = true
+	part.Position = position - Vector3.new(0, 0.5, 0)
+	part.Name = "AutoFarmPlatform"
+	part.Transparency = 0.3
+	part.BrickColor = BrickColor.new("Really black")
+	part.Parent = Workspace
+	return part
+end
+
+local function createTweenPlatform()
+	local platform = Instance.new("Part")
+	platform.Size = Vector3.new(6, 1, 6)
+	platform.Anchored = true
+	platform.CanCollide = true
+	platform.Transparency = 1 -- fully transparent, set to 0.5 if you want to see it
+	platform.Name = "TweenPlatform"
+	platform.Parent = workspace
+	return platform
+end
+
+local function tweenToPosition(position)
+	local root = getPlayerRoot()
+	if not root then return end
+
+	local platform = createTweenPlatform()
+	platform.CFrame = CFrame.new(root.Position.X, root.Position.Y - 3, root.Position.Z)
+
+	local connection
+	connection = RunService.Heartbeat:Connect(function()
+		if root and platform then
+			platform.Position = Vector3.new(root.Position.X, root.Position.Y - 3, root.Position.Z)
+		end
+	end)
+
+	local tween = TweenService:Create(root, TweenInfo.new(
+		TWEEN_SPEED, -- customizable speed
+		Enum.EasingStyle.Sine,
+		Enum.EasingDirection.Out
+	), { CFrame = CFrame.new(position) })
+
+	tween:Play()
+
+	-- Platform fall protection while tweening
+	local fallProtection = task.spawn(function()
+		while tween.PlaybackState ~= Enum.PlaybackState.Completed do
+			if root.Position.Y < platform.Position.Y - 5 then
+				root.CFrame = CFrame.new(platform.Position + Vector3.new(0, 3, 0))
+			end
+			task.wait(PLATFORM_SPAWN_INTERVAL)
+		end
+	end)
+
+	tween.Completed:Wait()
+
+	if connection then connection:Disconnect() end
+	if platform then platform:Destroy() end
+	if fallProtection then task.cancel(fallProtection) end
+end
+
+-- 🗡️ Player Kill Aura Loop
+task.spawn(function()
+	while true do
+		local root = getPlayerRoot()
+		if root then
+			local targets = {}
+			for _, mob in ipairs(MobsFolder:GetChildren()) do
+				if mob:IsA("Model") and mob:FindFirstChild("Healthbar") and not mob:FindFirstChild("PetItemRef") then
+					local mobPart = getMobPosition(mob)
+					if mobPart and (mobPart.Position - root.Position).Magnitude <= ATTACK_RANGE then
+						table.insert(targets, mob)
+					end
+				end
+			end
+			if #targets > 0 then
+				CombatRemote:FireServer(targets)
+			end
+		end
+		task.wait(ATTACK_DELAY)
+	end
+end)
+
+-- Pet Kill Aura Loop
+task.spawn(function()
+	while true do
+		local root = getPlayerRoot()
+		if not root then task.wait(PET_ATTACK_DELAY) continue end
+
+		local petModel = MobsFolder:FindFirstChild(PET_NAME)
+		if not petModel then
+			warn("[PetAura] Pet model not found in workspace.Mobs")
+			task.wait(1)
+			continue
+		end
+
+		local hitbox = ReplicatedStorage:FindFirstChild("Mobs")
+			and ReplicatedStorage.Mobs:FindFirstChild(PET_NAME)
+			and ReplicatedStorage.Mobs[PET_NAME]:FindFirstChild("Attacks")
+			and ReplicatedStorage.Mobs[PET_NAME].Attacks:FindFirstChild(PET_ATTACK_NAME)
+			and ReplicatedStorage.Mobs[PET_NAME].Attacks[PET_ATTACK_NAME]:FindFirstChild(PET_HITBOX_NAME)
+
+		if not hitbox then
+			warn("[PetAura] Hitbox not found for pet attack")
+			task.wait(1)
+			continue
+		end
+
+		for _, mob in ipairs(MobsFolder:GetChildren()) do
+			if mob:IsA("Model") and mob ~= petModel and mob:FindFirstChild("Healthbar") then
+				local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+				if mobRoot and (mobRoot.Position - root.Position).Magnitude <= ATTACK_RANGE then
+					local args = {
+						petModel,
+						PET_ATTACK_NAME,
+						hitbox,
+						{ mob }
+					}
+					PetDamageRemote:FireServer(unpack(args))
+				end
+			end
+		end
+
+		task.wait(PET_ATTACK_DELAY)
+	end
+end)
+
+-- Teleport loop
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		if justRespawned then continue end -- ⛔ skip if recently respawned
+		local root = getPlayerRoot()
+		if not root then continue end
+		local mob = getNearestMob()
+		if mob and (mob ~= lastMob or not mob:FindFirstChild("Healthbar")) then
+			lastMob = mob
+			if platform then platform:Destroy() end
+			local mobPart = getMobPosition(mob)
+			if mobPart then
+				-- Add slight random offset to avoid perfect positioning
+				local offset = Vector3.new(math.random(-2, 2), TELEPORT_HEIGHT, math.random(-2, 2))
+				local above = mobPart.Position + offset
+				platform = spawnPlatform(above)
+				tweenToPosition(above)
+
+				-- Also move pet
+				local petModel = MobsFolder:FindFirstChild(PET_NAME)
+				if petModel and petModel:IsA("Model") then
+					local petHRP = getMobPosition(petModel)
+					if petHRP then
+						petHRP.CFrame = CFrame.new(above + Vector3.new(2, 0, 0))
+					end
+				end
+			end
+		end
+
+		-- Fall check
+		if platform and root and root.Position.Y < platform.Position.Y - 5 then
+			tweenToPosition(platform.Position + Vector3.new(0, 1, 0))
+		end
+	end
+end)
+
+-- Reset on respawn
+LocalPlayer.CharacterAdded:Connect(function()
+	lastMob = nil
+	justRespawned = true
+	task.delay(2, function() justRespawned = false end) -- Wait 2 seconds before teleporting again
+end)
+
+-- Auto start dungeon
+task.spawn(function()
+	while true do
+		TriggerStartDungeon:FireServer()
+		task.wait(0.5)
+	end
+end)
+
+-- Auto collect drops
+task.spawn(function()
+	while true do
+		task.wait(0.3)
+		local root = getPlayerRoot()
+		if not root then continue end
+		for _, item in ipairs(EffectsFolder:GetChildren()) do
+			if item:IsA("Model") and (item.Name == "KeyModel" or item.Name:lower():find("chest")) then
+				local primary = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+				if primary then
+					primary.CFrame = CFrame.new(root.Position + Vector3.new(0, 2, 0))
+				end
+			end
+		end
+	end
+end)
+
+-- Auto dungeon replay
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		local hasRemainingDrops = false
+		for _, item in ipairs(EffectsFolder:GetChildren()) do
+			if item:IsA("Model") and (item.Name == "KeyModel" or item.Name:lower():find("chest")) then
+				hasRemainingDrops = true
+				break
+			end
+		end
+		if not hasRemainingDrops then
+			SetExitChoice:FireServer("GoAgain")
+		end
+	end
+end)
+
+warn("✅ Dual Kill Aura: Player + Pet autofarm enabled.")
