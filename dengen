@@ -5,16 +5,7 @@ repeat task.wait() until lp and lp.Character and lp.Character:FindFirstChild("Hu
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local GAME_ID = 109839406390472
-local MAIN_URL = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/denge"
-
--- Only run in the intended game
-if game.GameId ~= GAME_ID then
-    warn("[AutoAura] Not the main game, script halted.")
-    return
-else
-    warn("[AutoAura] Main game verified. Script running.")
-end
+local MAIN_URL = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/dengen"
 
 -- Requeue this script for next teleport
 pcall(function()
