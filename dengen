@@ -2,6 +2,17 @@ repeat task.wait() until game:IsLoaded()
 local lp = game:GetService("Players").LocalPlayer
 repeat task.wait() until lp and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
 
+-- Prevent re-execution
+if getgenv then
+    getgenv().__DENGEN_LOADED = getgenv().__DENGEN_LOADED or false
+    if getgenv().__DENGEN_LOADED then return end
+    getgenv().__DENGEN_LOADED = true
+elseif _G then
+    _G.__DENGEN_LOADED = _G.__DENGEN_LOADED or false
+    if _G.__DENGEN_LOADED then return end
+    _G.__DENGEN_LOADED = true
+end
+
 -- FULL AUTO FARM SCRIPT - Dual Kill Aura (Player + Pet)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
