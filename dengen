@@ -2,6 +2,11 @@ repeat task.wait() until game:IsLoaded()
 local lp = game:GetService("Players").LocalPlayer
 repeat task.wait() until lp and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
 
+local MAIN_URL = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/dengen"
+if queueonteleport then
+    queueonteleport("loadstring(game:HttpGet('" .. MAIN_URL .. "'))()")
+end
+
 -- FULL AUTO FARM SCRIPT - Dual Kill Aura (Player + Pet)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
