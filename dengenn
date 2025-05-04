@@ -2,45 +2,6 @@ repeat task.wait() until game:IsLoaded()
 local lp = game:GetService("Players").LocalPlayer
 repeat task.wait() until lp and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
-local GAME_ID = 109839406390472
-local MAIN_URL = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/rakko"
-
--- Only run in the intended game
-if game.GameId ~= GAME_ID then
-    warn("[AutoAura] Not the main game, script halted.")
-    return
-else
-    warn("[AutoAura] Main game verified. Script running.")
-end
-
--- Requeue this script for the next teleport
-pcall(function()
-    if queueonteleport then
-        queueonteleport("loadstring(game:HttpGet('" .. MAIN_URL .. "'))()")
-    end
-end)
-
--- Wait until game and character are fully loaded
-repeat task.wait() until game:IsLoaded()
-repeat task.wait() until LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-task.wait(1.5)
-
--- 🌟 MAIN LOGIC BLOCK STARTS HERE 🌟
--- Put all your actual gameplay automation / farming / ESP / spinning logic here.
-
-print("[AutoAura] Main logic starting...")
-
--- Example:
--- local function autoFarm()
---     -- your farming or combat logic
--- end
--- autoFarm()
-
--- 🌟 MAIN LOGIC BLOCK ENDS HERE 🌟
-
 -- FULL AUTO FARM SCRIPT - Dual Kill Aura (Player + Pet)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
