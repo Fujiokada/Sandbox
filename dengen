@@ -5,7 +5,7 @@ repeat task.wait() until lp and lp.Character and lp.Character:FindFirstChild("Hu
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local GAME_ID = 135364962469129
+local GAME_ID = 109839406390472
 local MAIN_URL = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/dengen"
 
 -- Only run in the intended game
