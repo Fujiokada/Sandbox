@@ -9,7 +9,7 @@ elseif _G then
     _G.__DENGEN_LOADED = true
 end
 
-local scriptUrl = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/dengen"
+local scriptUrl = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/dengenn"
 local queueScript = ("loadstring(game:HttpGet('%s'))()"):format(scriptUrl)
 
 if queue_on_teleport then
