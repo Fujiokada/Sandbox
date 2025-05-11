@@ -29,7 +29,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
-local allowedPlaceId = 109839406390472
+local allowedPlaceId = 71150884252164
 if game.PlaceId ~= allowedPlaceId then
 	warn("[AutoFarm] Aborted: Script is running in an unsupported game or lobby.")
 	return
