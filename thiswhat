@@ -1,0 +1,127 @@
+--// Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+local localPlayer = Players.LocalPlayer
+
+--// Remotes
+local addBlessingRemote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("AddBlessing")
+local rerollBlessingRemote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RerollBlessing")
+
+--// UI Setup
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+ScreenGui.Name = "BlessingGui"
+
+local Frame = Instance.new("Frame")
+Frame.Parent = ScreenGui
+Frame.Size = UDim2.new(0, 220, 0, 140)
+Frame.Position = UDim2.new(0, 10, 1, -150) -- bottom-left corner
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.BackgroundTransparency = 0.1
+
+local UICorner = Instance.new("UICorner", Frame)
+UICorner.CornerRadius = UDim.new(0, 6)
+
+local UIStroke = Instance.new("UIStroke", Frame)
+UIStroke.Thickness = 2
+UIStroke.Color = Color3.fromRGB(60, 60, 60)
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Parent = Frame
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.BackgroundTransparency = 1
+Title.Text = "⚡ Blessing Tool"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextScaled = true
+
+-- Amount Box
+local AmountBox = Instance.new("TextBox")
+AmountBox.Parent = Frame
+AmountBox.Size = UDim2.new(0.9, 0, 0, 25)
+AmountBox.Position = UDim2.new(0.05, 0, 0, 35)
+AmountBox.PlaceholderText = "Amount (e.g., 5000)"
+AmountBox.Text = ""
+AmountBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+AmountBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", AmountBox).CornerRadius = UDim.new(0, 4)
+
+-- Blessing Box
+local BlessingBox = Instance.new("TextBox")
+BlessingBox.Parent = Frame
+BlessingBox.Size = UDim2.new(0.9, 0, 0, 25)
+BlessingBox.Position = UDim2.new(0.05, 0, 0, 65)
+BlessingBox.PlaceholderText = "Blessing Name (e.g., Fortune)"
+BlessingBox.Text = ""
+BlessingBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+BlessingBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", BlessingBox).CornerRadius = UDim.new(0, 4)
+
+-- Fire Blessing Button
+local FireButton = Instance.new("TextButton")
+FireButton.Parent = Frame
+FireButton.Size = UDim2.new(0.42, 0, 0, 30)
+FireButton.Position = UDim2.new(0.05, 0, 0, 100)
+FireButton.Text = "🔥 Fire"
+FireButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+FireButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", FireButton).CornerRadius = UDim.new(0, 4)
+
+-- Reroll Button
+local RerollButton = Instance.new("TextButton")
+RerollButton.Parent = Frame
+RerollButton.Size = UDim2.new(0.42, 0, 0, 30)
+RerollButton.Position = UDim2.new(0.53, 0, 0, 100)
+RerollButton.Text = "♻️ Reroll"
+RerollButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+RerollButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", RerollButton).CornerRadius = UDim.new(0, 4)
+
+--// Functions
+local function notify(msg)
+	StarterGui:SetCore("SendNotification", {
+		Title = "Blessing Tool";
+		Text = msg;
+		Duration = 4;
+	})
+end
+
+FireButton.MouseButton1Click:Connect(function()
+	local amount = tonumber(AmountBox.Text) or 0
+	local blessingName = BlessingBox.Text ~= "" and BlessingBox.Text or "Fortune"
+	local blessingStats = localPlayer:WaitForChild("PlayerGui")
+		:WaitForChild("Blessing")
+		:WaitForChild("Blessings")
+		:WaitForChild(blessingName)
+
+	if blessingStats and amount > 0 then
+		RunService.Heartbeat:Once(function()
+			for i = 1, amount do
+				addBlessingRemote:FireServer(blessingStats)
+			end
+		end)
+		notify("Fired " .. amount .. "x AddBlessing for " .. blessingName)
+	else
+		notify("⚠️ Invalid input")
+	end
+end)
+
+RerollButton.MouseButton1Click:Connect(function()
+	local amount = tonumber(AmountBox.Text) or 0
+	local blessingName = BlessingBox.Text ~= "" and BlessingBox.Text or "SlimeValue"
+
+	if amount > 0 then
+		RunService.Heartbeat:Once(function()
+			for i = 1, amount do
+				rerollBlessingRemote:FireServer(blessingName)
+			end
+		end)
+		notify("Rerolled " .. blessingName .. " " .. amount .. "x")
+	else
+		notify("⚠️ Invalid input")
+	end
+end)
