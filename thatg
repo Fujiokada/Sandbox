@@ -1,6 +1,8 @@
 --// Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
@@ -9,7 +11,7 @@ local requestEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Eve
 local requestFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Functions"):WaitForChild("Request")
 
 --// Config
-local targetStructures = { "Glacier Jar", "Petal Well", "Cryo Chamber" }
+local targetStructures = { "Petal Well", "Cryo Chamber" }
 local potionsToBuy = {
     "Small Luck Potion", "Medium Luck Potion", "Large Luck Potion",
     "Small Speed Potion", "Medium Speed Potion", "Large Speed Potion",
@@ -19,11 +21,13 @@ local potionsToBuy = {
 --// Variables
 local localPlayer = Players.LocalPlayer
 local plotFolder = nil
-local autoEnabled = true
-local inPotionMode = false
-local lastCollect = tick()
+local autoEnabled = false
 
---// UI
+local lastCollect = tick()
+local inPotionMode = false
+local nextPotionTime = tick() -- when potion mode will run again (dynamic from restock timer)
+
+--// UI Setup (top-left simple timer)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoFarmUI"
 screenGui.ResetOnSpawn = false
@@ -41,9 +45,9 @@ timerLabel.TextSize = 16
 timerLabel.Text = "Potion Timer: Ready"
 timerLabel.Parent = screenGui
 
---// Detect Plot
+--// Detect your plot
 local function detectPlot()
-    local plots = workspace:WaitForChild("Plots")
+    local plots = Workspace:WaitForChild("Plots")
     for i = 1, 9 do
         local plot = plots:FindFirstChild(tostring(i))
         if plot and plot:FindFirstChild("Placed") then
@@ -55,7 +59,20 @@ local function detectPlot()
 end
 detectPlot()
 
---// Stock Checker
+--// Toggle with P
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.P then
+        autoEnabled = not autoEnabled
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoFarm",
+            Text = autoEnabled and "🟢 Enabled" or "🔴 Disabled",
+            Duration = 4
+        })
+    end
+end)
+
+--// Check if potion has stock
 local function potionHasStock(potionName)
     local guiPath = localPlayer.PlayerGui:FindFirstChild("Windows")
     if not guiPath then return false end
@@ -75,23 +92,24 @@ local function potionHasStock(potionName)
     return not stockText:match("Out of Stock")
 end
 
---// Parse Restock Timer
+--// Parse countdown timer ("Next Restock: mm:ss")
 local function getRestockTime()
     local countdown = localPlayer.PlayerGui:FindFirstChild("Windows") and localPlayer.PlayerGui.Windows:FindFirstChild("Gear") and localPlayer.PlayerGui.Windows.Gear:FindFirstChild("Countdown")
-    if not countdown then return 60 end
+    if not countdown then return 300 end -- fallback 5 min
+    local txt = countdown.Text or countdown.ContentText
+    if not txt then return 300 end
 
-    local text = countdown.Text or countdown.ContentText
-    if not text or not text:match("%d+:%d+") then return 60 end
-
-    local minutes, seconds = text:match("(%d+):(%d+)")
-    if not minutes or not seconds then return 60 end
-
-    return tonumber(minutes) * 60 + tonumber(seconds)
+    local mm, ss = txt:match("(%d+):(%d+)")
+    if mm and ss then
+        return tonumber(mm) * 60 + tonumber(ss)
+    end
+    return 300
 end
 
---// Potion Buying
+--// Function to run potion mode (with stock check + restock timer)
 local function buyPotionsSafe()
     inPotionMode = true
+    timerLabel.Text = "Potion Mode..."
     StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚗️ Potion mode started...", Duration=4})
 
     task.spawn(function()
@@ -110,45 +128,38 @@ local function buyPotionsSafe()
         end
 
         if anyBought then
-            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion purchases complete.", Duration=4})
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
         else
-            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚠️ No potions available.", Duration=4})
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚠️ No potions in stock! Waiting for restock...", Duration=5})
         end
 
-        -- After buying, wait for restock timer
-        local restockTime = getRestockTime()
-        for i = restockTime, 0, -1 do
-            timerLabel.Text = "Next Restock in: " .. i .. "s"
-            task.wait(1)
-        end
+        -- calculate when to retry based on countdown
+        local restockSeconds = getRestockTime()
+        nextPotionTime = tick() + restockSeconds
 
         inPotionMode = false
-        lastCollect = tick()
+        lastCollect = tick() -- reset farming loop timer
     end)
 end
 
 --// Main Loop
 RunService.Heartbeat:Connect(function()
     if not autoEnabled or not plotFolder then return end
-    if inPotionMode then return end
+    local now = tick()
 
-    -- Check if potions available
-    local hasStock = false
-    for _, potion in ipairs(potionsToBuy) do
-        if potionHasStock(potion) then
-            hasStock = true
-            break
-        end
-    end
-
-    -- If stock exists, enter potion mode
-    if hasStock then
+    -- Potion mode trigger
+    if not inPotionMode and now >= nextPotionTime then
         buyPotionsSafe()
         return
     end
 
-    -- Otherwise, just farm
-    local now = tick()
+    if inPotionMode then return end
+
+    -- Countdown display
+    local remaining = math.max(0, math.floor(nextPotionTime - now))
+    timerLabel.Text = "Potion in: " .. remaining .. "s"
+
+    -- Collect every 5s
     if now - lastCollect >= 1 then
         for _, name in ipairs(targetStructures) do
             local structure = plotFolder:FindFirstChild(name)
@@ -159,9 +170,6 @@ RunService.Heartbeat:Connect(function()
         lastCollect = now
     end
 
+    -- Manual gather spam
     requestEvent:FireServer("ManualGather")
-
-    -- Sync timer label to restock countdown
-    local restockTime = getRestockTime()
-    timerLabel.Text = "Next Restock in: " .. restockTime .. "s"
 end)
