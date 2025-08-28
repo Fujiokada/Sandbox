@@ -147,7 +147,7 @@ RunService.Heartbeat:Connect(function()
     timerLabel.Text = "Potion in: " .. remaining .. "s"
 
     -- Collect every 5s
-    if now - lastCollect >= 5 then
+    if now - lastCollect >= 1 then
         for _, name in ipairs(targetStructures) do
             local structure = plotFolder:FindFirstChild(name)
             if structure then
