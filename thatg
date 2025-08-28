@@ -1,0 +1,132 @@
+--// Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+
+--// Remotes
+local requestEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Events"):WaitForChild("Request")
+local requestFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Functions"):WaitForChild("Request")
+
+--// Config
+local targetStructures = { "Glacier Jar", "Titanic Jar", "Cryo Chamber" }
+local potionsToBuy = {
+    "Small Luck Potion", "Medium Luck Potion", "Large Luck Potion",
+    "Small Speed Potion", "Medium Speed Potion", "Large Speed Potion",
+    "Small Yield Potion", "Medium Yield Potion", "Large Yield Potion"
+}
+
+local potionInterval = 300 -- 5 minutes
+
+--// Variables
+local localPlayer = Players.LocalPlayer
+local plotFolder = nil
+local autoEnabled = false
+
+local lastCollect = tick()
+local lastPotionCycle = tick()
+local inPotionMode = false
+
+--// UI Setup (top-left simple timer)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoFarmUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local timerLabel = Instance.new("TextLabel")
+timerLabel.Size = UDim2.new(0, 220, 0, 30)
+timerLabel.Position = UDim2.new(0, 10, 0, 10)
+timerLabel.BackgroundTransparency = 0.4
+timerLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+timerLabel.BorderSizePixel = 0
+timerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+timerLabel.Font = Enum.Font.GothamSemibold
+timerLabel.TextSize = 16
+timerLabel.Text = "Potion Timer: Ready"
+timerLabel.Parent = screenGui
+
+--// Detect your plot
+local function detectPlot()
+    local plots = Workspace:WaitForChild("Plots")
+    for i = 1, 9 do
+        local plot = plots:FindFirstChild(tostring(i))
+        if plot and plot:FindFirstChild("Placed") then
+            plotFolder = plot.Placed
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Found Plot "..i, Duration=5})
+            break
+        end
+    end
+end
+detectPlot()
+
+--// Toggle with P
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.P then
+        autoEnabled = not autoEnabled
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoFarm",
+            Text = autoEnabled and "🟢 Enabled" or "🔴 Disabled",
+            Duration = 4
+        })
+    end
+end)
+
+--// Function to run potion burst
+local function buyPotionsBurst()
+    inPotionMode = true
+    timerLabel.Text = "Potion Mode..."
+    StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚗️ Potion mode activated...", Duration=4})
+
+    task.spawn(function()
+        for _, potion in ipairs(potionsToBuy) do
+            RunService.Heartbeat:Once(function()
+                for i = 1, 20 do
+                    pcall(function()
+                        requestFunction:InvokeServer("PurchaseGear", potion)
+                    end)
+                end
+            end)
+            task.wait(0.5)
+        end
+
+        StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
+
+        lastPotionCycle = tick()
+        inPotionMode = false
+        lastCollect = tick()
+    end)
+end
+
+--// Main Loop
+RunService.Heartbeat:Connect(function()
+    if not autoEnabled or not plotFolder then return end
+    local now = tick()
+
+    if not inPotionMode and (now - lastPotionCycle >= potionInterval) then
+        buyPotionsBurst()
+        return
+    end
+
+    if inPotionMode then return end
+
+    -- Countdown display
+    local remaining = math.max(0, potionInterval - math.floor(now - lastPotionCycle))
+    timerLabel.Text = "Potion in: " .. remaining .. "s"
+
+    -- Collect every 5s
+    if now - lastCollect >= 5 then
+        for _, name in ipairs(targetStructures) do
+            local structure = plotFolder:FindFirstChild(name)
+            if structure then
+                requestEvent:FireServer("CollectStructure", structure)
+            end
+        end
+        lastCollect = now
+    end
+
+    -- Manual gather every frame
+    requestEvent:FireServer("ManualGather")
+end)
