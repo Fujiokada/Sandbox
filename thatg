@@ -18,14 +18,16 @@ local potionsToBuy = {
     "Small Yield Potion", "Medium Yield Potion", "Large Yield Potion"
 }
 
+local potionInterval = 60 -- every 60s
+
 --// Variables
 local localPlayer = Players.LocalPlayer
 local plotFolder = nil
 local autoEnabled = false
 
 local lastCollect = tick()
+local lastPotionCycle = tick()
 local inPotionMode = false
-local nextPotionTime = tick() -- when potion mode will run again (dynamic from restock timer)
 
 --// UI Setup (top-left simple timer)
 local screenGui = Instance.new("ScreenGui")
@@ -92,21 +94,7 @@ local function potionHasStock(potionName)
     return not stockText:match("Out of Stock")
 end
 
---// Parse countdown timer ("Next Restock: mm:ss")
-local function getRestockTime()
-    local countdown = localPlayer.PlayerGui:FindFirstChild("Windows") and localPlayer.PlayerGui.Windows:FindFirstChild("Gear") and localPlayer.PlayerGui.Windows.Gear:FindFirstChild("Countdown")
-    if not countdown then return 300 end -- fallback 5 min
-    local txt = countdown.Text or countdown.ContentText
-    if not txt then return 300 end
-
-    local mm, ss = txt:match("(%d+):(%d+)")
-    if mm and ss then
-        return tonumber(mm) * 60 + tonumber(ss)
-    end
-    return 300
-end
-
---// Function to run potion mode (with stock check + restock timer)
+--// Function to run potion mode (with stock check)
 local function buyPotionsSafe()
     inPotionMode = true
     timerLabel.Text = "Potion Mode..."
@@ -124,21 +112,20 @@ local function buyPotionsSafe()
                     task.wait(0.1)
                 end
                 anyBought = true
+            else
+                print("⚠️ Skipping " .. potion .. " (Out of Stock!)")
             end
         end
 
         if anyBought then
             StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
         else
-            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚠️ No potions in stock! Waiting for restock...", Duration=5})
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚠️ All potions out of stock! Skipping...", Duration=5})
         end
 
-        -- calculate when to retry based on countdown
-        local restockSeconds = getRestockTime()
-        nextPotionTime = tick() + restockSeconds
-
+        lastPotionCycle = tick() -- reset after done
         inPotionMode = false
-        lastCollect = tick() -- reset farming loop timer
+        lastCollect = tick() -- reset collect timing too
     end)
 end
 
@@ -147,42 +134,20 @@ RunService.Heartbeat:Connect(function()
     if not autoEnabled or not plotFolder then return end
     local now = tick()
 
-    -- Always read the actual countdown text
-    local countdownLabel = localPlayer.PlayerGui.Windows.Gear:FindFirstChild("Countdown")
-    local countdownText = countdownLabel and (countdownLabel.Text or countdownLabel.ContentText)
-
-    -- Parse mm:ss if possible
-    local mm, ss = countdownText and countdownText:match("(%d+):(%d+)")
-    local remaining = (mm and ss) and (tonumber(mm) * 60 + tonumber(ss)) or 0
-
-    -- Update UI
-    if remaining > 0 then
-        timerLabel.Text = "Potion in: " .. remaining .. "s"
-    else
-        timerLabel.Text = "Potion in: Ready!"
-    end
-
-    -- Potion mode trigger
-    if not inPotionMode then
-        local anyStock = false
-        for _, potion in ipairs(potionsToBuy) do
-            if potionHasStock(potion) then
-                anyStock = true
-                break
-            end
-        end
-
-        -- If any stock is available or the countdown is 0 → run potion mode
-        if anyStock or remaining == 0 then
-            buyPotionsSafe()
-            return
-        end
+    -- Enter potion mode every interval
+    if not inPotionMode and (now - lastPotionCycle >= potionInterval) then
+        buyPotionsSafe()
+        return
     end
 
     if inPotionMode then return end
 
+    -- Countdown display
+    local remaining = math.max(0, potionInterval - math.floor(now - lastPotionCycle))
+    timerLabel.Text = "Potion in: " .. remaining .. "s"
+
     -- Collect every 5s
-    if now - lastCollect >= 5 then
+    if now - lastCollect >= 1 then
         for _, name in ipairs(targetStructures) do
             local structure = plotFolder:FindFirstChild(name)
             if structure then
@@ -192,7 +157,6 @@ RunService.Heartbeat:Connect(function()
         lastCollect = now
     end
 
-    -- Manual gather
+    -- Manual gather spam
     requestEvent:FireServer("ManualGather")
 end)
-
