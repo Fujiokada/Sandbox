@@ -147,20 +147,42 @@ RunService.Heartbeat:Connect(function()
     if not autoEnabled or not plotFolder then return end
     local now = tick()
 
+    -- Always read the actual countdown text
+    local countdownLabel = localPlayer.PlayerGui.Windows.Gear:FindFirstChild("Countdown")
+    local countdownText = countdownLabel and (countdownLabel.Text or countdownLabel.ContentText)
+
+    -- Parse mm:ss if possible
+    local mm, ss = countdownText and countdownText:match("(%d+):(%d+)")
+    local remaining = (mm and ss) and (tonumber(mm) * 60 + tonumber(ss)) or 0
+
+    -- Update UI
+    if remaining > 0 then
+        timerLabel.Text = "Potion in: " .. remaining .. "s"
+    else
+        timerLabel.Text = "Potion in: Ready!"
+    end
+
     -- Potion mode trigger
-    if not inPotionMode and now >= nextPotionTime then
-        buyPotionsSafe()
-        return
+    if not inPotionMode then
+        local anyStock = false
+        for _, potion in ipairs(potionsToBuy) do
+            if potionHasStock(potion) then
+                anyStock = true
+                break
+            end
+        end
+
+        -- If any stock is available or the countdown is 0 → run potion mode
+        if anyStock or remaining == 0 then
+            buyPotionsSafe()
+            return
+        end
     end
 
     if inPotionMode then return end
 
-    -- Countdown display
-    local remaining = math.max(0, math.floor(nextPotionTime - now))
-    timerLabel.Text = "Potion in: " .. remaining .. "s"
-
     -- Collect every 5s
-    if now - lastCollect >= 1 then
+    if now - lastCollect >= 5 then
         for _, name in ipairs(targetStructures) do
             local structure = plotFolder:FindFirstChild(name)
             if structure then
@@ -170,6 +192,7 @@ RunService.Heartbeat:Connect(function()
         lastCollect = now
     end
 
-    -- Manual gather spam
+    -- Manual gather
     requestEvent:FireServer("ManualGather")
 end)
+
