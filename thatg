@@ -18,7 +18,7 @@ local potionsToBuy = {
     "Small Yield Potion", "Medium Yield Potion", "Large Yield Potion"
 }
 
-local potionInterval = 300 -- 5 minutes
+local potionInterval = 60 -- every 60s
 
 --// Variables
 local localPlayer = Players.LocalPlayer
@@ -74,29 +74,27 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
---// Function to run potion burst
-local function buyPotionsBurst()
+--// Function to run potion mode (safe 0.1s pacing)
+local function buyPotionsSafe()
     inPotionMode = true
     timerLabel.Text = "Potion Mode..."
-    StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚗️ Potion mode activated...", Duration=4})
+    StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚗️ Potion mode started...", Duration=4})
 
     task.spawn(function()
         for _, potion in ipairs(potionsToBuy) do
-            RunService.Heartbeat:Once(function()
-                for i = 1, 20 do
-                    pcall(function()
-                        requestFunction:InvokeServer("PurchaseGear", potion)
-                    end)
-                end
-            end)
-            task.wait(0.5)
+            for i = 1, 20 do
+                pcall(function()
+                    requestFunction:InvokeServer("PurchaseGear", potion)
+                end)
+                task.wait(0.1) -- pacing to avoid spam kick
+            end
         end
 
         StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
 
-        lastPotionCycle = tick()
+        lastPotionCycle = tick() -- reset after done
         inPotionMode = false
-        lastCollect = tick()
+        lastCollect = tick() -- reset collect timing too
     end)
 end
 
@@ -105,8 +103,9 @@ RunService.Heartbeat:Connect(function()
     if not autoEnabled or not plotFolder then return end
     local now = tick()
 
+    -- Enter potion mode every interval
     if not inPotionMode and (now - lastPotionCycle >= potionInterval) then
-        buyPotionsBurst()
+        buyPotionsSafe()
         return
     end
 
@@ -127,6 +126,6 @@ RunService.Heartbeat:Connect(function()
         lastCollect = now
     end
 
-    -- Manual gather every frame
+    -- Manual gather spam
     requestEvent:FireServer("ManualGather")
 end)
