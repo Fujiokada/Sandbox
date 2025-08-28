@@ -13,9 +13,9 @@ local requestFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 --// Config
 local targetStructures = { "Petal Well", "Cryo Chamber" }
 local potionsToBuy = {
-    "Small Luck Potion", "Medium Luck Potion", "Large Luck Potion",
-    "Small Speed Potion", "Medium Speed Potion", "Large Speed Potion",
-    "Small Yield Potion", "Medium Yield Potion", "Large Yield Potion"
+    "Small Luck Potion", "Medium Luck Potion",
+    "Small Speed Potion", "Medium Speed Potion",
+    "Small Yield Potion", "Medium Yield Potion"
 }
 
 local potionInterval = 60 -- every 60s
