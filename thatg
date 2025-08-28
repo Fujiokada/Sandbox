@@ -74,23 +74,54 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
---// Function to run potion mode (safe 0.1s pacing)
+--// Check if potion has stock
+local function potionHasStock(potionName)
+    local guiPath = localPlayer.PlayerGui:FindFirstChild("Windows")
+    if not guiPath then return false end
+
+    local listFrame = guiPath:FindFirstChild("Gear") and guiPath.Gear:FindFirstChild("ListFrame") and guiPath.Gear.ListFrame:FindFirstChild("List")
+    if not listFrame then return false end
+
+    local potionFrame = listFrame:FindFirstChild(potionName)
+    if not potionFrame then return false end
+
+    local stockLabel = potionFrame:FindFirstChild("Container") and potionFrame.Container:FindFirstChild("Stock")
+    if not stockLabel then return false end
+
+    local stockText = stockLabel.Text or stockLabel.ContentText
+    if not stockText then return false end
+
+    return not stockText:match("Out of Stock")
+end
+
+--// Function to run potion mode (with stock check)
 local function buyPotionsSafe()
     inPotionMode = true
     timerLabel.Text = "Potion Mode..."
     StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚗️ Potion mode started...", Duration=4})
 
     task.spawn(function()
+        local anyBought = false
+
         for _, potion in ipairs(potionsToBuy) do
-            for i = 1, 20 do
-                pcall(function()
-                    requestFunction:InvokeServer("PurchaseGear", potion)
-                end)
-                task.wait(0.1) -- pacing to avoid spam kick
+            if potionHasStock(potion) then
+                for i = 1, 20 do
+                    pcall(function()
+                        requestFunction:InvokeServer("PurchaseGear", potion)
+                    end)
+                    task.wait(0.1)
+                end
+                anyBought = true
+            else
+                print("⚠️ Skipping " .. potion .. " (Out of Stock!)")
             end
         end
 
-        StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
+        if anyBought then
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="✅ Potion mode complete.", Duration=4})
+        else
+            StarterGui:SetCore("SendNotification", {Title="AutoFarm", Text="⚠️ All potions out of stock! Skipping...", Duration=5})
+        end
 
         lastPotionCycle = tick() -- reset after done
         inPotionMode = false
